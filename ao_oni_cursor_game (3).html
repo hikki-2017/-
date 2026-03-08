@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>蒼鬼 - BLUE DEMON</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&display=swap');
+
+  :root {
+    --blue: #1a3a6e;
+    --dark-blue: #0a0f1e;
+    --demon-blue: #2255cc;
+    --red: #cc2222;
+    --blood: #8b0000;
+    --fog: rgba(10, 15, 40, 0.85);
+    --text: #c8d8f0;
+    --dim: #4466aa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Noto Serif JP', serif;
+    cursor: none;
+    user-select: none;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #game-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    background: var(--dark-blue);
+    overflow: hidden;
+  }
+
+  /* Custom cursor - flashlight */
+  #cursor {
+    position: fixed;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 6px 3px rgba(255,255,220,0.9),
+                0 0 20px 10px rgba(255,255,180,0.5),
+                0 0 60px 40px rgba(200,200,255,0.15);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    mix-blend-mode: screen;
+    transition: width 0.1s, height 0.1s;
+  }
+
+  /* Darkness overlay with radial reveal */
+  #darkness {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    transition: opacity 0.3s;
+  }
+
+  /* Screen layers */
+  #screen {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* TITLE SCREEN */
+  #title-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    background: radial-gradient(ellipse at 50% 60%, #0a0a1e 0%, #000 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #title-screen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,80,0.15) 2px,
+      rgba(0,0,80,0.15) 4px
+    );
+    pointer-events: none;
+  }
+
+  .title-text {
+    font-size: clamp(48px, 10vw, 120px);
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0.3em;
+    text-shadow: 0 0 20px var(--demon-blue), 0 0 60px var(--blue), 0 0 100px #001188;
+    animation: titlePulse 3s ease-in-out infinite;
+    position: relative;
+    z-index: 2;
+  }
+
+  .title-sub {
+    font-size: clamp(14px, 2vw, 20px);
+    color: var(--dim);
+    letter-spacing: 0.5em;
+    margin-top: 10px;
+    text-shadow: 0 0 10px var(--blue);
+    position: relative;
+    z-index: 2;
+  }
+
+  .start-hint {
+    margin-top: 60px;
+    font-size: clamp(12px, 1.5vw, 16px);
+    color: var(--text);
+    letter-spacing: 0.3em;
+    animation: blink 1.5s ease-in-out infinite;
+    position: relative;
+    z-index: 2;
+    padding: 16px 40px;
+    border: 1px solid var(--dim);
+    cursor: none;
+  }
+
+  .start-hint:hover {
+    background: rgba(34, 85, 204, 0.3);
+    border-color: var(--demon-blue);
+    color: #fff;
+    text-shadow: 0 0 10px var(--demon-blue);
+  }
+
+  @keyframes titlePulse {
+    0%, 100% { text-shadow: 0 0 20px var(--demon-blue), 0 0 60px var(--blue), 0 0 100px #001188; }
+    50% { text-shadow: 0 0 30px #4488ff, 0 0 80px var(--demon-blue), 0 0 120px #0022aa; }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .demon-silhouette {
+    position: absolute;
+    bottom: 0;
+    right: 10%;
+    width: clamp(120px, 20vw, 280px);
+    opacity: 0.12;
+    filter: blur(1px);
+    z-index: 1;
+  }
+
+  /* GAME SCREEN */
+  #game-screen {
+    display: none;
+    position: absolute;
+    inset: 0;
+  }
+
+  #game-canvas {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Room */
+  .room {
+    position: absolute;
+    inset: 0;
+    background: #05080f;
+  }
+
+  /* UI */
+  #ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 200;
+    color: var(--dim);
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    text-shadow: 0 0 10px var(--blue);
+    pointer-events: none;
+  }
+
+  #floor-display {
+    font-size: 12px;
+    color: var(--dim);
+    letter-spacing: 0.3em;
+  }
+
+  #key-count {
+    margin-top: 6px;
+    font-size: 13px;
+  }
+
+  #message-box {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.85);
+    border: 1px solid var(--dim);
+    color: var(--text);
+    padding: 14px 30px;
+    font-size: 14px;
+    letter-spacing: 0.15em;
+    text-align: center;
+    z-index: 300;
+    display: none;
+    max-width: 80vw;
+    pointer-events: none;
+    box-shadow: 0 0 20px rgba(34,85,204,0.3);
+    white-space: nowrap;
+  }
+
+  /* GAME OVER */
+  #gameover-screen {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: #000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+  }
+
+  #gameover-screen.active {
+    display: flex;
+  }
+
+  .go-text {
+    font-size: clamp(40px, 8vw, 80px);
+    font-weight: 900;
+    color: var(--blood);
+    letter-spacing: 0.4em;
+    text-shadow: 0 0 20px var(--red), 0 0 60px var(--blood);
+    animation: goShake 0.1s ease-in-out infinite;
+  }
+
+  @keyframes goShake {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(2px, -2px) rotate(0.5deg); }
+    50% { transform: translate(-2px, 2px) rotate(-0.5deg); }
+    75% { transform: translate(2px, 2px) rotate(0.5deg); }
+    100% { transform: translate(-2px, -2px) rotate(-0.5deg); }
+  }
+
+  .go-sub {
+    margin-top: 20px;
+    color: #555;
+    font-size: 14px;
+    letter-spacing: 0.3em;
+  }
+
+  .retry-btn {
+    margin-top: 50px;
+    padding: 14px 50px;
+    border: 1px solid #333;
+    color: #888;
+    font-size: 14px;
+    letter-spacing: 0.3em;
+    cursor: none;
+    font-family: inherit;
+  }
+
+  .retry-btn:hover {
+    border-color: var(--blood);
+    color: var(--red);
+    box-shadow: 0 0 20px rgba(139,0,0,0.3);
+  }
+
+  /* CLEAR */
+  #clear-screen {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, #000820 0%, #000 100%);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+  }
+
+  #clear-screen.active {
+    display: flex;
+  }
+
+  .clear-text {
+    font-size: clamp(36px, 7vw, 70px);
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: 0.4em;
+    text-shadow: 0 0 20px #66aaff, 0 0 60px var(--blue);
+    animation: clearGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes clearGlow {
+    0%, 100% { text-shadow: 0 0 20px #66aaff, 0 0 60px var(--blue); }
+    50% { text-shadow: 0 0 40px #88ccff, 0 0 100px var(--demon-blue); }
+  }
+
+  .clear-sub {
+    margin-top: 16px;
+    color: var(--dim);
+    font-size: 14px;
+    letter-spacing: 0.4em;
+  }
+
+  .next-btn {
+    margin-top: 50px;
+    padding: 14px 50px;
+    border: 1px solid var(--dim);
+    color: var(--text);
+    font-size: 14px;
+    letter-spacing: 0.3em;
+    cursor: none;
+    font-family: inherit;
+  }
+
+  .next-btn:hover {
+    border-color: var(--demon-blue);
+    color: #fff;
+    box-shadow: 0 0 20px rgba(34,85,204,0.4);
+  }
+
+  /* Crack / scare effect */
+  #scare-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0);
+    z-index: 800;
+    pointer-events: none;
+    transition: background 0.05s;
+  }
+
+  /* Static noise effect for demon appear */
+  @keyframes staticFlash {
+    0% { opacity: 0; }
+    10% { opacity: 0.8; }
+    20% { opacity: 0; }
+    30% { opacity: 0.6; }
+    100% { opacity: 0; }
+  }
+
+  #static {
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+    pointer-events: none;
+    opacity: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  #static.flash {
+    animation: staticFlash 0.5s forwards;
+  }
+
+  /* Footstep sound indicator */
+  #sound-indicator {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: var(--blood);
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<div id="scare-overlay"></div>
+<div id="static"></div>
+
+<div id="game-container">
+
+  <!-- TITLE -->
+  <div id="title-screen">
+    <div class="title-text">蒼　鬼</div>
+    <div class="title-sub">B L U E &nbsp; D E M O N</div>
+    
+    <svg class="demon-silhouette" viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="100" cy="60" rx="55" ry="60" fill="#2255cc"/>
+      <circle cx="78" cy="48" r="12" fill="#000"/>
+      <circle cx="122" cy="48" r="12" fill="#000"/>
+      <circle cx="81" cy="50" r="6" fill="#ff0000"/>
+      <circle cx="125" cy="50" r="6" fill="#ff0000"/>
+      <path d="M75 80 Q100 95 125 80" stroke="#000" stroke-width="4" fill="none"/>
+      <rect x="55" y="115" width="90" height="120" rx="10" fill="#1a3a6e"/>
+      <rect x="20" y="115" width="40" height="90" rx="8" fill="#1a3a6e"/>
+      <rect x="140" y="115" width="40" height="90" rx="8" fill="#1a3a6e"/>
+      <rect x="60" y="235" width="30" height="65" rx="8" fill="#1a3a6e"/>
+      <rect x="110" y="235" width="30" height="65" rx="8" fill="#1a3a6e"/>
+      <path d="M55 0 L65 30 L75 5 L85 35 L95 8 L100 0 L105 8 L115 35 L125 5 L135 30 L145 0" fill="#2255cc"/>
+    </svg>
+
+    <div class="start-hint" id="start-btn">▶　ゲームスタート</div>
+
+    <div style="position:absolute; bottom:30px; font-size:11px; color:#223; letter-spacing:0.3em;">
+      マウスカーソルだけで操作　— CURSOR ONLY HORROR GAME —
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game-screen">
+    <canvas id="game-canvas"></canvas>
+    
+    <div id="ui">
+      <div id="floor-display">FLOOR 1</div>
+      <div id="key-count">🗝 鍵: 0 / 3</div>
+    </div>
+
+    <div id="message-box"></div>
+    <div id="sound-indicator">👁 何かが近い...</div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="gameover-screen">
+    <div class="go-text">GAME OVER</div>
+    <div class="go-sub">鬼に捕まった</div>
+    <div class="retry-btn" id="retry-btn">もう一度</div>
+  </div>
+
+  <!-- CLEAR -->
+  <div id="clear-screen">
+    <div class="clear-text">脱　出　成　功</div>
+    <div class="clear-sub">あなたは生き残った</div>
+    <div class="next-btn" id="next-btn">タイトルに戻る</div>
+  </div>
+
+</div>
+
+<script>
+// ===================== GAME ENGINE =====================
+const cursor = document.getElementById('cursor');
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+
+let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+let gameState = 'title'; // title, playing, gameover, clear
+let floor = 1;
+let keys = 0;
+let requiredKeys = 3;
+let player = null;
+let demon = null;
+let roomObjects = [];
+let doorOpen = false;
+let gameLoop = null;
+let scareTimeout = null;
+let lastDemonAlert = 0;
+let demonVisible = false;
+let demonChaseTime = 0;
+
+// Track mouse
+document.addEventListener('mousemove', (e) => {
+  mx = e.clientX;
+  my = e.clientY;
+  cursor.style.left = mx + 'px';
+  cursor.style.top = my + 'px';
+});
+
+// Canvas resize
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ===================== ROOM LAYOUT =====================
+const TILE = 60;
+let roomLayout = [];
+let roomW, roomH;
+let tileOffsetX, tileOffsetY;
+
+function generateRoom(floorNum) {
+  const cols = Math.floor(window.innerWidth / TILE);
+  const rows = Math.floor(window.innerHeight / TILE);
+  roomW = cols;
+  roomH = rows;
+  tileOffsetX = (window.innerWidth - cols * TILE) / 2;
+  tileOffsetY = (window.innerHeight - rows * TILE) / 2;
+
+  roomLayout = [];
+  for (let r = 0; r < rows; r++) {
+    roomLayout[r] = [];
+    for (let c = 0; c < cols; c++) {
+      // Walls on border
+      if (r === 0 || r === rows - 1 || c === 0 || c === cols - 1) {
+        roomLayout[r][c] = 'wall';
+      } else {
+        roomLayout[r][c] = 'floor';
+      }
+    }
+  }
+
+  // Add pillars
+  for (let i = 0; i < 8 + floorNum * 2; i++) {
+    const rc = randInt(2, rows - 3);
+    const cc = randInt(2, cols - 3);
+    roomLayout[rc][cc] = 'wall';
+  }
+
+  // Player starts near top-left
+  player = {
+    col: 2, row: 2,
+    x: tileOffsetX + 2 * TILE + TILE / 2,
+    y: tileOffsetY + 2 * TILE + TILE / 2,
+    targetX: tileOffsetX + 2 * TILE + TILE / 2,
+    targetY: tileOffsetY + 2 * TILE + TILE / 2,
+    moving: false,
+    size: 14,
+    speed: 4,
+    angle: 0
+  };
+  roomLayout[2][2] = 'floor';
+
+  // Door at bottom-right
+  const doorRow = rows - 2;
+  const doorCol = cols - 2;
+  roomLayout[doorRow][doorCol] = 'door';
+
+  // Keys scattered around
+  roomObjects = [];
+  keys = 0;
+  doorOpen = false;
+  let placed = 0;
+  while (placed < requiredKeys) {
+    const kr = randInt(3, rows - 3);
+    const kc = randInt(3, cols - 3);
+    if (roomLayout[kr][kc] === 'floor') {
+      roomLayout[kr][kc] = 'key';
+      roomObjects.push({ type: 'key', row: kr, col: kc, collected: false });
+      placed++;
+    }
+  }
+
+  // Demon starts far from player
+  const dr = rows - 3;
+  const dc = cols - 3;
+  roomLayout[dr][dc] = 'floor';
+  demon = {
+    x: tileOffsetX + dc * TILE + TILE / 2,
+    y: tileOffsetY + dr * TILE + TILE / 2,
+    col: dc, row: dr,
+    size: 22,
+    speed: 1.2 + floorNum * 0.3,
+    angle: 0,
+    visible: false,
+    alpha: 0,
+    pathTimer: 0,
+    alertState: 0, // 0=patrol, 1=chase
+    targetX: 0, targetY: 0,
+    patrolTimer: 0,
+    patrolDX: 0, patrolDY: 0
+  };
+  demon.targetX = demon.x;
+  demon.targetY = demon.y;
+
+  demonChaseTime = 0;
+  demonVisible = false;
+}
+
+function randInt(a, b) {
+  return Math.floor(Math.random() * (b - a)) + a;
+}
+
+function tileAt(row, col) {
+  if (row < 0 || row >= roomH || col < 0 || col >= roomW) return 'wall';
+  return roomLayout[row][col];
+}
+
+// ===================== PATHFINDING (Simple BFS) =====================
+function bfsPath(fromRow, fromCol, toRow, toCol) {
+  const queue = [[fromRow, fromCol, []]];
+  const visited = new Set();
+  visited.add(fromRow + ',' + fromCol);
+  const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+  while (queue.length > 0) {
+    const [r, c, path] = queue.shift();
+    if (r === toRow && c === toCol) return path;
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      const key = nr + ',' + nc;
+      if (!visited.has(key)) {
+        const t = tileAt(nr, nc);
+        if (t !== 'wall') {
+          visited.add(key);
+          queue.push([nr, nc, [...path, [nr, nc]]]);
+        }
+      }
+    }
+    if (queue.length > 500) break;
+  }
+  return null;
+}
+
+// ===================== DRAW =====================
+function drawRoom() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#030508';
+  ctx.fillRect(0, 0, W, H);
+
+  // Tiles
+  for (let r = 0; r < roomH; r++) {
+    for (let c = 0; c < roomW; c++) {
+      const tx = tileOffsetX + c * TILE;
+      const ty = tileOffsetY + r * TILE;
+      const t = roomLayout[r][c];
+
+      if (t === 'wall') {
+        // Wall
+        const g = ctx.createLinearGradient(tx, ty, tx, ty + TILE);
+        g.addColorStop(0, '#0d1525');
+        g.addColorStop(1, '#080e1a');
+        ctx.fillStyle = g;
+        ctx.fillRect(tx, ty, TILE, TILE);
+        ctx.strokeStyle = '#1a2840';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tx + 0.5, ty + 0.5, TILE - 1, TILE - 1);
+
+        // brick texture
+        ctx.strokeStyle = '#0f1a2e';
+        ctx.lineWidth = 0.5;
+        if (r % 2 === 0) {
+          ctx.strokeRect(tx + 2, ty + 2, TILE - 4, TILE / 2 - 2);
+          ctx.strokeRect(tx + 2, ty + TILE / 2, TILE - 4, TILE / 2 - 2);
+        } else {
+          ctx.strokeRect(tx + TILE / 4, ty + 2, TILE / 2, TILE / 2 - 2);
+          ctx.strokeRect(tx + TILE / 4, ty + TILE / 2, TILE / 2, TILE / 2 - 2);
+        }
+      } else if (t === 'floor') {
+        ctx.fillStyle = '#080d16';
+        ctx.fillRect(tx, ty, TILE, TILE);
+        ctx.strokeStyle = '#0e1520';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(tx, ty, TILE, TILE);
+      } else if (t === 'door') {
+        ctx.fillStyle = doorOpen ? '#1a3a1a' : '#2a1a0a';
+        ctx.fillRect(tx, ty, TILE, TILE);
+        // Door frame
+        ctx.strokeStyle = doorOpen ? '#33aa33' : '#aa7722';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(tx + 4, ty + 2, TILE - 8, TILE - 4);
+        // Door label
+        ctx.fillStyle = doorOpen ? '#55ff55' : '#aa7722';
+        ctx.font = 'bold 9px serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(doorOpen ? '脱出' : '施錠', tx + TILE / 2, ty + TILE / 2 + 3);
+        ctx.textAlign = 'left';
+      } else if (t === 'key') {
+        ctx.fillStyle = '#080d16';
+        ctx.fillRect(tx, ty, TILE, TILE);
+        ctx.strokeStyle = '#0e1520';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(tx, ty, TILE, TILE);
+        // Key icon
+        const kx = tx + TILE / 2;
+        const ky = ty + TILE / 2;
+        ctx.save();
+        ctx.translate(kx, ky);
+        ctx.strokeStyle = '#ccaa00';
+        ctx.fillStyle = '#ffdd44';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -4, 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillRect(-2, 2, 4, 12);
+        ctx.fillRect(0, 9, 6, 3);
+        ctx.fillRect(0, 13, 4, 3);
+        ctx.restore();
+      }
+    }
+  }
+}
+
+function drawPlayer() {
+  const px = player.x;
+  const py = player.y;
+  const s = player.size;
+
+  // Player body (human silhouette)
+  ctx.save();
+  ctx.translate(px, py);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath();
+  ctx.ellipse(2, s + 4, s * 0.8, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#334455';
+  ctx.beginPath();
+  ctx.roundRect(-s * 0.5, 0, s, s * 1.2, 3);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = '#c8a882';
+  ctx.beginPath();
+  ctx.arc(0, -s * 0.5, s * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eyes (scared)
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(-3, -s * 0.55, 2, 0, Math.PI * 2);
+  ctx.arc(3, -s * 0.55, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  // Flashlight cone from player to cursor
+  const angle = Math.atan2(my - py, mx - px);
+  const spread = Math.PI / 3;
+  const range = 180;
+
+  ctx.save();
+  const flashGrad = ctx.createRadialGradient(px, py, 5, px, py, range);
+  flashGrad.addColorStop(0, 'rgba(255, 255, 200, 0.18)');
+  flashGrad.addColorStop(0.6, 'rgba(200, 220, 255, 0.08)');
+  flashGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = flashGrad;
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.arc(px, py, range, angle - spread / 2, angle + spread / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawDemon() {
+  if (demon.alpha <= 0) return;
+  const dx = demon.x;
+  const dy = demon.y;
+  const s = demon.size;
+
+  ctx.save();
+  ctx.globalAlpha = demon.alpha;
+  ctx.translate(dx, dy);
+
+  // Shadow
+  ctx.globalAlpha = demon.alpha * 0.4;
+  ctx.fillStyle = 'rgba(0,0,80,0.6)';
+  ctx.beginPath();
+  ctx.ellipse(0, s + 6, s, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = demon.alpha;
+
+  // Body
+  const bodyGrad = ctx.createLinearGradient(0, -s * 0.5, 0, s * 1.5);
+  bodyGrad.addColorStop(0, '#2244bb');
+  bodyGrad.addColorStop(1, '#0a1a55');
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.roundRect(-s * 0.6, 0, s * 1.2, s * 1.6, 5);
+  ctx.fill();
+
+  // Arms
+  ctx.fillStyle = '#1a3388';
+  ctx.beginPath();
+  ctx.roundRect(-s * 1.1, 0, s * 0.6, s * 1.2, 4);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(s * 0.5, 0, s * 0.6, s * 1.2, 4);
+  ctx.fill();
+
+  // Head
+  const headGrad = ctx.createRadialGradient(0, -s * 0.8, 2, 0, -s * 0.8, s * 0.9);
+  headGrad.addColorStop(0, '#3366ee');
+  headGrad.addColorStop(1, '#1133aa');
+  ctx.fillStyle = headGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, -s * 0.8, s * 0.8, s * 0.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Horns
+  ctx.fillStyle = '#2244bb';
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.5, -s * 1.5);
+  ctx.lineTo(-s * 0.7, -s * 1.8);
+  ctx.lineTo(-s * 0.2, -s * 1.5);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(s * 0.5, -s * 1.5);
+  ctx.lineTo(s * 0.7, -s * 1.8);
+  ctx.lineTo(s * 0.2, -s * 1.5);
+  ctx.fill();
+
+  // Eyes - glowing red
+  const eyeGlow = demon.alertState === 1 ? 1.5 : 1;
+  ctx.shadowColor = `rgba(255,0,0,${demon.alertState === 1 ? 0.9 : 0.5})`;
+  ctx.shadowBlur = 15 * eyeGlow;
+  ctx.fillStyle = demon.alertState === 1 ? '#ff2222' : '#cc2222';
+  ctx.beginPath();
+  ctx.ellipse(-s * 0.3, -s * 0.9, s * 0.22, s * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(s * 0.3, -s * 0.9, s * 0.22, s * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Mouth
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.3, -s * 0.55);
+  ctx.lineTo(0, -s * 0.45);
+  ctx.lineTo(s * 0.3, -s * 0.55);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawDarkness() {
+  const W = canvas.width, H = canvas.height;
+  const px = player.x, py = player.y;
+  const angle = Math.atan2(my - py, mx - px);
+  const lightRadius = 120;
+
+  // Create darkness with hole around player + flashlight
+  ctx.save();
+
+  // Full dark overlay
+  ctx.fillStyle = 'rgba(0,0,0,0.92)';
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+
+  // Subtract player vicinity
+  ctx.arc(px, py, lightRadius, 0, Math.PI * 2, true);
+
+  // Subtract flashlight cone
+  const spread = Math.PI * 0.35;
+  const range = 220;
+  ctx.moveTo(px, py);
+  ctx.arc(px, py, range, angle - spread, angle + spread, false);
+  ctx.moveTo(px, py);
+
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.8);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,10,0.7)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ===================== GAME LOGIC =====================
+function startGame() {
+  floor = 1;
+  requiredKeys = 3;
+  generateRoom(floor);
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  gameState = 'playing';
+  updateUI();
+  requestAnimationFrame(gameUpdate);
+}
+
+function updateUI() {
+  document.getElementById('floor-display').textContent = `FLOOR ${floor}`;
+  document.getElementById('key-count').textContent = `🗝 鍵: ${keys} / ${requiredKeys}`;
+}
+
+let lastTime = 0;
+function gameUpdate(timestamp) {
+  if (gameState !== 'playing') return;
+
+  const dt = Math.min(timestamp - lastTime, 50);
+  lastTime = timestamp;
+
+  updatePlayer();
+  updateDemon(dt);
+  checkCollisions();
+
+  drawRoom();
+  drawPlayer();
+  drawDemon();
+  drawDarkness();
+
+  requestAnimationFrame(gameUpdate);
+}
+
+function updatePlayer() {
+  // Player moves toward cursor
+  const dx = mx - player.x;
+  const dy = my - player.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist > 5) {
+    const speed = Math.min(player.speed, dist);
+    const nx = player.x + (dx / dist) * speed;
+    const ny = player.y + (dy / dist) * speed;
+
+    // Collision with walls
+    const nc = Math.floor((nx - tileOffsetX) / TILE);
+    const nr = Math.floor((ny - tileOffsetY) / TILE);
+
+    const canMoveX = tileAt(Math.floor((ny - tileOffsetY) / TILE), Math.floor((nx - tileOffsetX) / TILE)) !== 'wall';
+    const canMoveY = tileAt(Math.floor((ny - tileOffsetY) / TILE), Math.floor((player.x - tileOffsetX) / TILE)) !== 'wall';
+    const canMoveXonly = tileAt(Math.floor((player.y - tileOffsetY) / TILE), Math.floor((nx - tileOffsetX) / TILE)) !== 'wall';
+
+    if (canMoveX) {
+      player.x = nx;
+      player.y = ny;
+    } else if (canMoveXonly) {
+      player.x = nx;
+    } else if (canMoveY) {
+      player.y = ny;
+    }
+  }
+}
+
+let demonPath = null;
+let demonPathStep = 0;
+let patrolTarget = null;
+
+function updateDemon(dt) {
+  const px = player.x, py = player.y;
+  const pdx = px - demon.x;
+  const pdy = py - demon.y;
+  const distToPlayer = Math.sqrt(pdx * pdx + pdy * pdy);
+
+  // Detection radius
+  const detectRange = 200 + floor * 30;
+  const chaseRange = 280 + floor * 40;
+
+  // Visibility logic - demon visible when close or chasing
+  const targetAlpha = distToPlayer < chaseRange ? Math.min(1, (chaseRange - distToPlayer) / 150) : 0;
+  demon.alpha += (targetAlpha - demon.alpha) * 0.05;
+
+  // State machine
+  if (distToPlayer < detectRange || demon.alertState === 1) {
+    if (distToPlayer < detectRange) {
+      if (demon.alertState === 0) {
+        triggerDemonDetect();
+      }
+      demon.alertState = 1;
+      demonChaseTime = 0;
+    }
+  } else {
+    demonChaseTime += dt;
+    if (demonChaseTime > 3000) {
+      demon.alertState = 0;
+    }
+  }
+
+  // Alert sound indicator
+  const soundEl = document.getElementById('sound-indicator');
+  if (distToPlayer < chaseRange + 50) {
+    soundEl.style.opacity = '1';
+    if (demon.alertState === 1) {
+      soundEl.textContent = '⚠ 鬼が追ってくる！';
+      soundEl.style.color = '#ff3333';
+    } else {
+      soundEl.textContent = '👁 何かが近い...';
+      soundEl.style.color = '#8844aa';
+    }
+  } else {
+    soundEl.style.opacity = '0';
+  }
+
+  // Move demon
+  if (demon.alertState === 1) {
+    // Chase player
+    demon.patrolTimer -= dt;
+    if (demon.patrolTimer <= 0) {
+      demon.patrolTimer = 800;
+      const pCol = Math.floor((px - tileOffsetX) / TILE);
+      const pRow = Math.floor((py - tileOffsetY) / TILE);
+      demonPath = bfsPath(demon.row, demon.col, pRow, pCol);
+      demonPathStep = 0;
+    }
+    moveDemonAlongPath(demon.speed * 1.4);
+  } else {
+    // Patrol
+    demon.patrolTimer -= dt;
+    if (demon.patrolTimer <= 0 || !patrolTarget) {
+      demon.patrolTimer = 2000;
+      const cols = roomW, rows = roomH;
+      let tries = 0;
+      do {
+        const tc = randInt(1, cols - 1);
+        const tr = randInt(1, rows - 1);
+        if (tileAt(tr, tc) !== 'wall') {
+          patrolTarget = { row: tr, col: tc };
+          demonPath = bfsPath(demon.row, demon.col, tr, tc);
+          demonPathStep = 0;
+          break;
+        }
+        tries++;
+      } while (tries < 50);
+    }
+    moveDemonAlongPath(demon.speed);
+  }
+}
+
+function moveDemonAlongPath(speed) {
+  if (!demonPath || demonPathStep >= demonPath.length) return;
+
+  const step = demonPath[demonPathStep];
+  const tx = tileOffsetX + step[1] * TILE + TILE / 2;
+  const ty = tileOffsetY + step[0] * TILE + TILE / 2;
+
+  const dx = tx - demon.x;
+  const dy = ty - demon.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < 3) {
+    demon.col = step[1];
+    demon.row = step[0];
+    demonPathStep++;
+  } else {
+    const s = Math.min(speed, dist);
+    demon.x += (dx / dist) * s;
+    demon.y += (dy / dist) * s;
+  }
+}
+
+function triggerDemonDetect() {
+  const static_el = document.getElementById('static');
+  static_el.classList.remove('flash');
+  void static_el.offsetWidth;
+  static_el.classList.add('flash');
+  showMessage('⚠ 気配を感じる...');
+}
+
+function checkCollisions() {
+  const pc = Math.floor((player.x - tileOffsetX) / TILE);
+  const pr = Math.floor((player.y - tileOffsetY) / TILE);
+
+  // Key pickup
+  for (const obj of roomObjects) {
+    if (!obj.collected && obj.type === 'key') {
+      if (obj.col === pc && obj.row === pr) {
+        obj.collected = true;
+        roomLayout[obj.row][obj.col] = 'floor';
+        keys++;
+        if (keys >= requiredKeys) {
+          doorOpen = true;
+          showMessage('🗝 全ての鍵を集めた！扉が開いた！');
+        } else {
+          showMessage(`🗝 鍵を手に入れた！ (${keys}/${requiredKeys})`);
+        }
+        updateUI();
+      }
+    }
+  }
+
+  // Door interaction
+  const doorTile = roomLayout[pr] && roomLayout[pr][pc];
+  if (doorTile === 'door' && doorOpen) {
+    nextFloor();
+    return;
+  }
+
+  // Demon catch
+  const ddx = demon.x - player.x;
+  const ddy = demon.y - player.y;
+  const dd = Math.sqrt(ddx * ddx + ddy * ddy);
+  if (dd < 28) {
+    gameOver();
+  }
+}
+
+function nextFloor() {
+  floor++;
+  if (floor > 3) {
+    gameClear();
+    return;
+  }
+  requiredKeys = 3 + floor;
+  generateRoom(floor);
+  updateUI();
+  showMessage(`FLOOR ${floor}　さらに深く...`);
+}
+
+function showMessage(text, duration = 2500) {
+  const box = document.getElementById('message-box');
+  box.textContent = text;
+  box.style.display = 'block';
+  clearTimeout(showMessage._t);
+  showMessage._t = setTimeout(() => { box.style.display = 'none'; }, duration);
+}
+
+function gameOver() {
+  gameState = 'gameover';
+  document.getElementById('gameover-screen').classList.add('active');
+  const scare = document.getElementById('scare-overlay');
+  scare.style.background = 'rgba(180,0,0,0.7)';
+  setTimeout(() => { scare.style.background = ''; }, 200);
+}
+
+function gameClear() {
+  gameState = 'clear';
+  document.getElementById('clear-screen').classList.add('active');
+}
+
+// ===================== EVENTS =====================
+document.getElementById('start-btn').addEventListener('click', () => {
+  startGame();
+});
+document.getElementById('start-btn').addEventListener('mouseenter', () => {
+  cursor.style.width = '22px';
+  cursor.style.height = '22px';
+});
+document.getElementById('start-btn').addEventListener('mouseleave', () => {
+  cursor.style.width = '16px';
+  cursor.style.height = '16px';
+});
+
+document.getElementById('retry-btn').addEventListener('click', () => {
+  document.getElementById('gameover-screen').classList.remove('active');
+  floor = 1;
+  requiredKeys = 3;
+  generateRoom(floor);
+  gameState = 'playing';
+  updateUI();
+  requestAnimationFrame(gameUpdate);
+});
+
+document.getElementById('next-btn').addEventListener('click', () => {
+  document.getElementById('clear-screen').classList.remove('active');
+  document.getElementById('game-screen').style.display = 'none';
+  document.getElementById('title-screen').style.display = 'flex';
+  gameState = 'title';
+});
+
+// Animate static removal
+document.getElementById('static').addEventListener('animationend', () => {
+  document.getElementById('static').classList.remove('flash');
+});
+
+// Title cursor effect
+document.addEventListener('mousemove', () => {
+  if (gameState === 'title') {
+    cursor.style.boxShadow = `
+      0 0 6px 3px rgba(255,255,220,0.9),
+      0 0 20px 10px rgba(255,255,180,0.5),
+      0 0 60px 40px rgba(200,200,255,0.15)
+    `;
+  }
+});
+</script>
+</body>
+</html>
